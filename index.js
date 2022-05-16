@@ -21,8 +21,10 @@ function verifyJWT(req, res, next) {
     return res.status(401).send({ message: 'UnAuthorized access' });
   }
   const token = authHeader.split(' ')[1];
+  console.log(token);
   jwt.verify(token, process.env.USER_TOKEN, function (err, decoded) {
     if (err) {
+      console.log(err);
       return res.status(403).send({ message: 'Forbidden access' })
     }
     req.decoded = decoded;
@@ -45,19 +47,26 @@ async function run() {
       res.send(services);
     });
 
-    app.get('/users', verifyJWT, async(req, res) => {
+    app.get('/users', verifyJWT, async (req, res) => {
       const users = await userCollection.find().toArray();
       res.send(users)
     })
 
     app.put('/user/admin/:email', verifyJWT, async (req, res) => {
       const email = req.params.email;
-      const filter = { email: email };
-      const updateDoc = {
-        $set: {role: 'admin'},
-      };
-      const result = await userCollection.updateOne(filter, updateDoc);
-      res.send(result);
+      const requester = req.decoded.email;
+      const requesterAccount = await userCollection.findOne({ email: requester })
+      if (requesterAccount.role === 'admin') {
+        const filter = { email: email };
+        const updateDoc = {
+          $set: { role: 'admin' },
+        };
+        const result = await userCollection.updateOne(filter, updateDoc);
+        res.send(result);
+      }
+      else {
+        res.status(403).send({message: 'Forbidden'})
+      }
     })
 
     app.put('/user/:email', async (req, res) => {
