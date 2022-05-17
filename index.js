@@ -39,6 +39,7 @@ async function run() {
     const serviceCollection = client.db('doctor_portal').collection('service');
     const bookingCollection = client.db('doctor_portal').collection('bookings');
     const userCollection = client.db('doctor_portal').collection('users');
+    const doctorCollection = client.db('doctor_portal').collection('doctors');
 
     app.get('/service', async (req, res) => {
       const query = {};
@@ -59,7 +60,7 @@ async function run() {
       res.send({admin: isAdmin})
     })
 
-    app.put('/user/admin/:email', verifyJWT, async (req, res) => {
+    app.put('/user/admin/:email', verifyJWT, verifyAdmin, async (req, res) => {
       const email = req.params.email;
       const requester = req.decoded.email;
       const requesterAccount = await userCollection.findOne({ email: requester })
@@ -126,6 +127,12 @@ async function run() {
       }
       const result = await bookingCollection.insertOne(booking);
       return res.send({ success: true, result });
+    })
+
+    app.post('/doctor', async(req, res) => {
+      const doctor = req.body;
+      const result = await doctorCollection.insertOne(doctor)
+      res.send(result)
     })
 
   }
