@@ -4,6 +4,8 @@ const jwt = require('jsonwebtoken');
 require('dotenv').config();
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 
+const stripe = require('stripe')(process.env.STRIPE_KEY);
+
 const app = express();
 const port = process.env.PORT || 5000;
 
@@ -38,6 +40,7 @@ async function run() {
     const bookingCollection = client.db('doctor_portal').collection('bookings');
     const userCollection = client.db('doctor_portal').collection('users');
     const doctorCollection = client.db('doctor_portal').collection('doctors');
+    const paymentCollection = client.db('doctor_portal').collection('payments');
 
     const verifyAdmin = async (req, res, next) => {
       const requester = req.decoded.email;
@@ -145,6 +148,22 @@ async function run() {
       return res.send({ success: true, result });
     })
 
+    app.patch('/booking/:id', verifyJWT, async (req, res) => {
+      const id = req.params.id;
+      const payment = req.body;
+      const filter = { _id: ObjectId(id) };
+      const updatedDoc = {
+        $set: {
+          paid: true,
+          transactionId: payment.transactionId
+        }
+      }
+
+      const result = await paymentCollection.insertOne(payment);
+      const updatedBooking = await bookingCollection.updateOne(filter, updatedDoc);
+      res.send(updatedBooking);
+    })
+
     app.get('/doctor', async (req, res) => {
       const doctors = await doctorCollection.find().toArray();
       res.send(doctors)
@@ -155,6 +174,18 @@ async function run() {
       const result = await doctorCollection.insertOne(doctor)
       res.send(result)
     })
+
+    app.post('/create-payment-intent', verifyJWT, async (req, res) => {
+      const service = req.body;
+      const price = service.price;
+      const amount = price * 100;
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: 'usd',
+        payment_method_types: ['card']
+      });
+      res.send({ clientSecret: paymentIntent.client_secret })
+    });
 
     app.delete('/doctor/:email', verifyJWT, verifyAdmin, async (req, res) => {
       const email = req.params.email;
